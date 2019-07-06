@@ -1128,6 +1128,13 @@ bool MainWindow::loadDataFromFile(const FileLoadInfo& info)
     {
         dataloader = compatible_loaders.front()->second;
     }
+    else if ( compatible_loaders.size() == 0 ) {
+        QMessageBox::warning(this, tr("Error"),
+                             tr("No data loading plugins found!\n"
+                                "Please check your installation/build settings!")
+                             .arg(info.filename) );
+        return false;
+    }
     else{
         static QString last_plugin_name_used;
 
