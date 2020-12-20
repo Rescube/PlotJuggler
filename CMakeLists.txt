@@ -225,6 +225,7 @@ add_subdirectory( plugins/DataLoadULog )
 add_subdirectory( plugins/DataStreamSample )
 add_subdirectory( plugins/DataStreamWebsocket )
 add_subdirectory( plugins/DataStreamUDP )
+add_subdirectory( plugins/DataStreamOpenOCD )
 
 if( ZMQ_FOUND )
   add_subdirectory( plugins/DataStreamZMQ )
