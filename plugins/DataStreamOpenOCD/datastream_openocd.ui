@@ -16,19 +16,27 @@
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QWidget" name="boxOptions" native="true">
-     <layout class="QVBoxLayout" name="layoutOptions">
-      <property name="leftMargin">
-       <number>0</number>
-      </property>
-      <property name="topMargin">
-       <number>6</number>
-      </property>
-      <property name="rightMargin">
-       <number>0</number>
-      </property>
-      <property name="bottomMargin">
-       <number>6</number>
-      </property>
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Executable file</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QPathEdit" name="patheditExecutableFilePath"/>
+      </item>
+      <item row="0" column="2">
+       <widget class="QToolButton" name="toolButton">
+        <property name="text">
+         <string>Import</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="3">
+       <widget class="QTreeView" name="treeViewVariables"/>
+      </item>
      </layout>
     </widget>
    </item>
@@ -44,6 +52,16 @@
    </item>
   </layout>
  </widget>
+<<<<<<< HEAD
+=======
+ <customwidgets>
+  <customwidget>
+   <class>QPathEdit</class>
+   <extends>QWidget</extends>
+   <header>qpathedit.h</header>
+  </customwidget>
+ </customwidgets>
+>>>>>>> 596ceea714a282b1bf75474426c57095b42dfe74
  <resources/>
  <connections>
   <connection>

@@ -1,3 +1,9 @@
 [submodule "3rdparty/paho.mqtt.c"]
 	path = 3rdparty/paho.mqtt.c
 	url = https://github.com/eclipse/paho.mqtt.c.git
+[submodule "plugins/DataStreamOpenOCD/QPathEdit"]
+	path = plugins/DataStreamOpenOCD/QPathEdit
+	url = git@github.com:Skycoder42/QPathEdit.git
+[submodule "plugins/DataStreamOpenOCD/DialogMaster"]
+	path = plugins/DataStreamOpenOCD/DialogMaster
+	url = git@github.com:Skycoder42/DialogMaster.git

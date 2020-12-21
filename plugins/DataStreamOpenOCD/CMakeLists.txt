@@ -4,10 +4,20 @@ include_directories(../)
 
 add_definitions(${QT_DEFINITIONS})
 add_definitions(-DQT_PLUGIN)
+add_definitions(-DQ_DIALOG_MASTER_EXPORT=)
 
 QT5_WRAP_UI ( UI_SRC  datastream_openocd.ui  )
 
-SET( SRC datastream_openocd.cpp )
+include_directories(DialogMaster QPathEdit/QPathEdit)
+
+SET( SRC
+    datastream_openocd.cpp
+    QPathEdit/QPathEdit/qpathedit.cpp
+    DialogMaster/dialogmaster.cpp
+    )
+
+set(HEADERS
+    datastream_openocd.h)
 
 add_library(DataStreamOpenOCD SHARED ${SRC} ${UI_SRC}  )
 
