@@ -52,8 +52,6 @@
    </item>
   </layout>
  </widget>
-<<<<<<< HEAD
-=======
  <customwidgets>
   <customwidget>
    <class>QPathEdit</class>
@@ -61,7 +59,6 @@
    <header>qpathedit.h</header>
   </customwidget>
  </customwidgets>
->>>>>>> 596ceea714a282b1bf75474426c57095b42dfe74
  <resources/>
  <connections>
   <connection>

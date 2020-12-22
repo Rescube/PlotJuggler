@@ -14,10 +14,13 @@ SET( SRC
     datastream_openocd.cpp
     QPathEdit/QPathEdit/qpathedit.cpp
     DialogMaster/dialogmaster.cpp
+    infovar.h
+    infovar.cpp
+    gdbvar.h
+    gdbvar.cpp
+    gdbexec.h
+    gdbexec.cpp
     )
-
-set(HEADERS
-    datastream_openocd.h)
 
 add_library(DataStreamOpenOCD SHARED ${SRC} ${UI_SRC}  )
 
