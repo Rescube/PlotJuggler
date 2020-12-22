@@ -18,34 +18,31 @@ void InfoVar::Parse(const QString &m_infoVarStr, bool parambool)
     return;
   }
 
-  int i = m_infoVarStr.indexOf(FILE_MARKER_START);
-
-  int k = 0;
-
-  while ((i != -1) && (k == 0))
-  {
-    int j = m_infoVarStr.indexOf(FILE_MARKER_START, i + 1);
-    if (j == -1)
-    {
-      j = m_infoVarStr.indexOf(NON_DEBUG_MARKER, i + 1);
-      k = 1;
-    }
-    if (j == -1)
-    {
-      j = m_infoVarStr.length() - 1;
-      k = 1;
+  int fileMarker = m_infoVarStr.indexOf(FILE_MARKER_START);
+  bool finished = false;
+  while ((fileMarker != -1) && !finished) {
+    int nextFileMarker = m_infoVarStr.indexOf(FILE_MARKER_START, fileMarker + 1);
+    if (nextFileMarker == -1) {
+      nextFileMarker = m_infoVarStr.indexOf(NON_DEBUG_MARKER, fileMarker + 1);
+      finished = true;
     }
 
-    int m = m_infoVarStr.indexOf(FILE_MARKER_END, i);
-    if (m == -1) {
+    if (nextFileMarker == -1) {
+      // if no "Non-debugging symbols:" found at the end of the output
+      // put the nextFileMarker index to the end of the output
+      // BuildVarList will use this index
+      nextFileMarker = m_infoVarStr.length() - 1;
+      finished = true;
+    }
+
+    int fileNameEndPosition = m_infoVarStr.indexOf(FILE_MARKER_END, fileMarker);
+    if (fileNameEndPosition == -1) {
       qWarning() << "Info var parsing error while getting filename";
       return;
     }
-    QString str = m_infoVarStr.mid(i + FILE_MARKER_START.length(), m);
-
-    BuildVarList(str, m_infoVarStr.mid(m + FILE_MARKER_END.length(), j), "", parambool);
-
-    i = j;
+    const auto fileName = m_infoVarStr.mid(fileMarker + FILE_MARKER_START.length(), fileNameEndPosition - (fileMarker + FILE_MARKER_START.length()));
+    BuildVarList(fileName, m_infoVarStr.mid(fileNameEndPosition + FILE_MARKER_END.length(), nextFileMarker - (fileNameEndPosition + FILE_MARKER_END.length())), "", parambool);
+    fileMarker = nextFileMarker;
   }
 }
 
@@ -76,8 +73,9 @@ int InfoVar::GetMatchingClosingBrace(const QString &paramString)
   return ret;
 }
 
-void InfoVar::BuildVarList(const QString &paramString1, const QString &paramString2, const QString &paramString3, bool parambool)
+void InfoVar::BuildVarList(const QString &fileName, const QString &paramString2, const QString &paramString3, bool parambool)
 {
+  qWarning() << "BuildVarList" << fileName << paramString2 << paramString3;
   int i = 0;
   while (i < paramString2.length()) {
     QString str2 = paramString2.mid(i);
@@ -103,104 +101,96 @@ void InfoVar::BuildVarList(const QString &paramString1, const QString &paramStri
     } else {
       str1 = str2.mid(0, n);
     }
-    ExtractIdentifier(paramString1, str1, paramString3, parambool);
+    ExtractIdentifier(fileName, str1, paramString3, parambool);
     i += n + 1;
   }
 }
 
-void InfoVar::ExtractIdentifier(const QString &paramString1, const QString &paramString2, const QString &paramString3, bool parambool)
+void InfoVar::ExtractIdentifier(const QString &filename, const QString &gdbVarDeclaration_, const QString &parentVariable, bool extractArrays)
 {
-  QString str1 = paramString2.trimmed();
+  QString gdbVarDeclaration = gdbVarDeclaration_.trimmed();
 
-  int j = str1.indexOf("[");
-  QString str2;
-  QString str4;
-  if (j != -1)
-  {
-    if (j != str1.lastIndexOf("["))
-    {
-      return;
-    }
-    QString str5 = str1.mid(str1.lastIndexOf(" ", j) + 1, j).trimmed();
+  int arrayOpenBracePos = gdbVarDeclaration.indexOf("[");
+  QString arrayItem;
+  QString baseType;
+  if (arrayOpenBracePos != -1) {
+    // this is an array
+    if (arrayOpenBracePos != gdbVarDeclaration.lastIndexOf("["))
+      return; // multi dimension array
 
-    if (str5.lastIndexOf("*") != -1)
-      str5 = str5.mid(str5.lastIndexOf("*") + 1).trimmed();
-    int i;
-    if (parambool == true)
-    {
-      QString str6 = str1.mid(j + 1, str1.indexOf("]", j));
-      i = str6.toInt();
+    auto variableName = gdbVarDeclaration.mid(gdbVarDeclaration.lastIndexOf(" ", arrayOpenBracePos) + 1, arrayOpenBracePos - gdbVarDeclaration.lastIndexOf(" ", arrayOpenBracePos) - 1).trimmed();
+    if (variableName.lastIndexOf("*") != -1) {
+      // strip pointer prefix
+      variableName = variableName.mid(variableName.lastIndexOf("*") + 1).trimmed();
     }
-    else
-    {
-      i = 1;
+    int arraySize = 1;
+    if (extractArrays == true) {
+      QString arraySizeStr = gdbVarDeclaration.mid(arrayOpenBracePos + 1, gdbVarDeclaration.indexOf("]", arrayOpenBracePos) - (arrayOpenBracePos + 1));
+      arraySize = arraySizeStr.toInt();
     }
 
-    str2 = paramString3 + str5 + "[0]";
-    str4 = m_gdb->getTypeDesc(str2);
-    for (int m = 0; m < i; m++)
-    {
-      str2 = paramString3 + str5 + "[" + m + "]";
-      if (!str4.isEmpty())
-        ExtractType(paramString1, str4, str2, parambool);
+    arrayItem = parentVariable + variableName + "[0]";
+    baseType = m_gdb->getTypeDesc(arrayItem);
+    for (int m = 0; m < arraySize; m++) {
+      arrayItem = parentVariable + variableName + "[" + m + "]";
+      if (!baseType.isEmpty())
+        ExtractType(filename, baseType, arrayItem, extractArrays);
     }
     return;
   }
+
   QString str3;
-  if (str1.lastIndexOf("*") != -1)
-  {
-    int k = str1.indexOf(")");
-    if (k != -1)
-    {
-      str1 = str1.mid(0, k);
+  if (gdbVarDeclaration.lastIndexOf("*") != -1) {
+    // thsi is a pointer
+    int k = gdbVarDeclaration.indexOf(")");
+    if (k != -1) {
+      gdbVarDeclaration = gdbVarDeclaration.left(k);
     }
 
-    str1 = str1.mid(str1.lastIndexOf("*") + 1).trimmed();
+    gdbVarDeclaration = gdbVarDeclaration.mid(gdbVarDeclaration.lastIndexOf("*") + 1).trimmed();
 
-    if (str1.lastIndexOf(" ") != -1) {
-      str1 = str1.mid(str1.lastIndexOf(" ") + 1).trimmed();
+    if (gdbVarDeclaration.lastIndexOf(" ") != -1) {
+      gdbVarDeclaration = gdbVarDeclaration.mid(gdbVarDeclaration.lastIndexOf(" ") + 1).trimmed();
     }
-    if (str1.isEmpty())
-    {
+    if (gdbVarDeclaration.isEmpty())
       return;
-    }
-    str2 = paramString3 + str1;
-    str3 = str1;
+    arrayItem = parentVariable + gdbVarDeclaration;
+    str3 = gdbVarDeclaration;
   }
-  else if (str1.contains("::"))
+  else if (gdbVarDeclaration.contains("::"))
   {
-    if (str1.contains("<"))
+    if (gdbVarDeclaration.contains("<"))
     {
       return;
     }
-    if ((str1.startsWith("const ")) || (str1.startsWith("static const ")))
+    if ((gdbVarDeclaration.startsWith("const ")) || (gdbVarDeclaration.startsWith("static const ")))
     {
       return;
     }
 
-    str3 = str1.mid(str1.lastIndexOf(" ") + 1).trimmed();
-    str2 = paramString3 + str3;
+    str3 = gdbVarDeclaration.mid(gdbVarDeclaration.lastIndexOf(" ") + 1).trimmed();
+    arrayItem = parentVariable + str3;
   } else {
-    if ((str1.contains(":")) && (!str1.contains("::")))
+    if ((gdbVarDeclaration.contains(":")) && (!gdbVarDeclaration.contains("::")))
     {
       return;
     }
 
-    str3 = str1.mid(str1.lastIndexOf(" ") + 1).trimmed();
-    str2 = paramString3 + str3;
+    str3 = gdbVarDeclaration.mid(gdbVarDeclaration.lastIndexOf(" ") + 1).trimmed();
+    arrayItem = parentVariable + str3;
   }
 
-  str1 = paramString2.trimmed();
-  if (str1.endsWith(str2))
-    str1 = str1.mid(0, str1.lastIndexOf(str2));
-  else if (str1.endsWith(str3)) {
-    str1 = str1.mid(0, str1.lastIndexOf(str3));
+  gdbVarDeclaration = gdbVarDeclaration.trimmed();
+  if (gdbVarDeclaration.endsWith(arrayItem))
+    gdbVarDeclaration = gdbVarDeclaration.mid(0, gdbVarDeclaration.lastIndexOf(arrayItem));
+  else if (gdbVarDeclaration.endsWith(str3)) {
+    gdbVarDeclaration = gdbVarDeclaration.mid(0, gdbVarDeclaration.lastIndexOf(str3));
   }
-  if (!ExtractType(paramString1, str1, str2, parambool))
+  if (!ExtractType(filename, gdbVarDeclaration, arrayItem, extractArrays))
   {
-    str4 = m_gdb->getTypeDesc(str2);
-    if (!str4.isEmpty())
-      ExtractType(paramString1, str4, str2, parambool);
+    baseType = m_gdb->getTypeDesc(arrayItem);
+    if (!baseType.isEmpty())
+      ExtractType(filename, baseType, arrayItem, extractArrays);
   }
 }
 

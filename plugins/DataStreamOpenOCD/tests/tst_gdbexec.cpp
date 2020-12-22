@@ -3,6 +3,7 @@
 #include "../gdbexec.h"
 
 #include <QDebug>
+#include <QEventLoop>
 
 class TestGdbExec : public QObject
 {
@@ -13,11 +14,11 @@ private slots:
     void testGdbExec()
     {
         GdbExec e;
-        e.buildVarList("/home/mm/Projektek/eagle/targetbot/STM32F103/Debug/targetbot.elf", true);
+        e.buildVarList("/home/mm/Projektek/xlineusb/Debug/xlineusb.elf", true);
     }
 };
 
 
-QTEST_APPLESS_MAIN(TestGdbExec)
+QTEST_GUILESS_MAIN(TestGdbExec)
 
 #include "tst_gdbexec.moc"

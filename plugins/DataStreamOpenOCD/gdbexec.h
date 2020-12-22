@@ -21,19 +21,18 @@ class GdbExec
   enum GdbStatus {
     Idle,
     Error = 1,
-    Initializing = 2,
-    Initialized = 3
+    WaitForAnswer = 2,
+    AnswerReceived = 3
   };
 
   const QString GDB_PROMPT = "(gdb) ";
-  int GDB_PROMPT_SIZE = 6;
 
   int m_status = 3;
   QString m_stdoutStr = "";
   QString m_stderrStr = "";
   long m_addressOffset = 0L;
   InfoVar *m_getGdbVar = nullptr;
-  const QString m_gdbExecutablePath = "/usr/bin/arm-none-eabi-gdb";
+  const QString m_gdbExecutablePath = "/usr/bin/gdb-multiarch";
 
 public:
   GdbExec();
@@ -42,7 +41,6 @@ public:
   bool isRunning() const;
   bool startGdb();
 
-  QString readAnswer(QProcess::ProcessChannel channel, bool waitforanswer);
   QString getTypeDesc(const QString &  paramString);
   short getType(const QString &  paramString);
   QString getSizeof(const QString &  paramString);
