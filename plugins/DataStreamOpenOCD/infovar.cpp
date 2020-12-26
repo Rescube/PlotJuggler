@@ -2,6 +2,7 @@
 
 #include "gdbvar.h"
 
+#include <QRegularExpression>
 #include <QDebug>
 
 InfoVar::InfoVar(GdbExec *paramGdbExec) :
@@ -10,20 +11,19 @@ InfoVar::InfoVar(GdbExec *paramGdbExec) :
 
 }
 
-void InfoVar::Parse(const QString &m_infoVarStr, bool parambool)
+void InfoVar::Parse(const QString m_infoVarStr, bool extendedParse)
 {
   qDeleteAll(m_varList);
   m_varList.clear();
-  if (m_infoVarStr.isEmpty()) {
+  if (m_infoVarStr.isEmpty())
     return;
-  }
 
-  int fileMarker = m_infoVarStr.indexOf(FILE_MARKER_START);
+  int fileSectionEndMarker = m_infoVarStr.indexOf(FILE_MARKER_START);
   bool finished = false;
-  while ((fileMarker != -1) && !finished) {
-    int nextFileMarker = m_infoVarStr.indexOf(FILE_MARKER_START, fileMarker + 1);
+  while ((fileSectionEndMarker != -1) && !finished) {
+    int nextFileMarker = m_infoVarStr.indexOf(FILE_MARKER_START, fileSectionEndMarker + 1);
     if (nextFileMarker == -1) {
-      nextFileMarker = m_infoVarStr.indexOf(NON_DEBUG_MARKER, fileMarker + 1);
+      nextFileMarker = m_infoVarStr.indexOf(NON_DEBUG_MARKER, fileSectionEndMarker + 1);
       finished = true;
     }
 
@@ -35,14 +35,17 @@ void InfoVar::Parse(const QString &m_infoVarStr, bool parambool)
       finished = true;
     }
 
-    int fileNameEndPosition = m_infoVarStr.indexOf(FILE_MARKER_END, fileMarker);
+    int fileNameEndPosition = m_infoVarStr.indexOf(FILE_MARKER_END, fileSectionEndMarker);
     if (fileNameEndPosition == -1) {
       qWarning() << "Info var parsing error while getting filename";
       return;
     }
-    const auto fileName = m_infoVarStr.mid(fileMarker + FILE_MARKER_START.length(), fileNameEndPosition - (fileMarker + FILE_MARKER_START.length()));
-    BuildVarList(fileName, m_infoVarStr.mid(fileNameEndPosition + FILE_MARKER_END.length(), nextFileMarker - (fileNameEndPosition + FILE_MARKER_END.length())), "", parambool);
-    fileMarker = nextFileMarker;
+    const auto fileName = m_infoVarStr.mid(fileSectionEndMarker + FILE_MARKER_START.length(), fileNameEndPosition - (fileSectionEndMarker + FILE_MARKER_START.length()));
+    ProcessFileSection(fileName,
+                       m_infoVarStr.mid(fileNameEndPosition + FILE_MARKER_END.length(), nextFileMarker - (fileNameEndPosition + FILE_MARKER_END.length())),
+                       QString(),
+                       extendedParse);
+    fileSectionEndMarker = nextFileMarker;
   }
 }
 
@@ -73,304 +76,292 @@ int InfoVar::GetMatchingClosingBrace(const QString &paramString)
   return ret;
 }
 
-void InfoVar::BuildVarList(const QString &fileName, const QString &paramString2, const QString &paramString3, bool parambool)
+void InfoVar::ProcessFileSection(const QString &fileName, const QString &variableList, const QString &paramString3, bool extendedParse)
 {
-  qWarning() << "BuildVarList" << fileName << paramString2 << paramString3;
-  int i = 0;
-  while (i < paramString2.length()) {
-    QString str2 = paramString2.mid(i);
-    int j = str2.indexOf(";");
-    int k = str2.indexOf("{");
-    int m = 0;
-    if ((k != -1) && (k < j))
-    {
-      m = GetMatchingClosingBrace(str2);
-      if (m == -1)
-      {
+  int processIndex = 0;
+  while (processIndex < variableList.length()) {
+    while (processIndex < variableList.length()) {
+      if (variableList.at(processIndex).isSpace())
+        processIndex++;
+      else
+        break;
+    }
+    if (!(processIndex < variableList.length()))
+      break;
+    // strip leading "128:    " like prefixes
+    if (variableList.at(processIndex).isDigit()) {
+      while (variableList.at(processIndex).isDigit() && processIndex < variableList.length()) {
+        processIndex++;
+      }
+
+      if (variableList.at(processIndex) == QChar(':')) {
+        processIndex++;
+        while (variableList.at(processIndex).isSpace() && processIndex < variableList.length()) {
+          processIndex++;
+        }
+      }
+    }
+    QString processedString = variableList.mid(processIndex);
+    int commaPos = processedString.indexOf(";");
+
+    int bracketOpenPos = processedString.indexOf("{");
+    int closingBracePos = 0;
+    if (bracketOpenPos != -1 && bracketOpenPos < commaPos) {
+      closingBracePos = GetMatchingClosingBrace(processedString);
+      if (closingBracePos == -1) {
         qWarning() << "Info var parsing error: opened brace not closed";
         return;
       }
     }
 
-    int n = str2.indexOf(";", m);
-    if (n == -1)
+    int nextCommaPos = processedString.indexOf(";", closingBracePos);
+    if (nextCommaPos == -1)
       return;
-    QString str1;
-    if (m != 0) {
-      str1 = str2.mid(0, k) + str2.mid(m + 1, n);
+    QString declarationBody;
+    if (closingBracePos != 0) {
+      // line contained a {} construct pass only the contents between the {} pair
+      declarationBody = processedString.mid(0, bracketOpenPos) + processedString.mid(closingBracePos + 1, nextCommaPos - closingBracePos - 1);
     } else {
-      str1 = str2.mid(0, n);
+      declarationBody = processedString.mid(0, nextCommaPos);
     }
-    ExtractIdentifier(fileName, str1, paramString3, parambool);
-    i += n + 1;
+    ExtractIdentifier(fileName, declarationBody, paramString3, extendedParse);
+    processIndex += nextCommaPos + 1;
   }
 }
 
-void InfoVar::ExtractIdentifier(const QString &filename, const QString &gdbVarDeclaration_, const QString &parentVariable, bool extractArrays)
+void InfoVar::ExtractIdentifier(const QString &filename, const QString &gdbVarDeclaration_, const QString &parentVariable, bool extendedParse)
 {
-  QString gdbVarDeclaration = gdbVarDeclaration_.trimmed();
+  QString variableDeclaration = gdbVarDeclaration_.trimmed();
 
-  int arrayOpenBracePos = gdbVarDeclaration.indexOf("[");
+  int arrayOpenBracePos = variableDeclaration.indexOf("[");
   QString arrayItem;
   QString baseType;
   if (arrayOpenBracePos != -1) {
     // this is an array
-    if (arrayOpenBracePos != gdbVarDeclaration.lastIndexOf("["))
-      return; // multi dimension array
+    if (arrayOpenBracePos != variableDeclaration.lastIndexOf("["))
+      return; // multi dimension array ??
+    auto lastSpacePos = variableDeclaration.lastIndexOf(" ", arrayOpenBracePos);
+    auto variableName = variableDeclaration.mid(lastSpacePos + 1, arrayOpenBracePos - lastSpacePos - 1).trimmed();
 
-    auto variableName = gdbVarDeclaration.mid(gdbVarDeclaration.lastIndexOf(" ", arrayOpenBracePos) + 1, arrayOpenBracePos - gdbVarDeclaration.lastIndexOf(" ", arrayOpenBracePos) - 1).trimmed();
-    if (variableName.lastIndexOf("*") != -1) {
-      // strip pointer prefix
+    // strip pointer prefix if present
+    if (variableName.contains('*'))
       variableName = variableName.mid(variableName.lastIndexOf("*") + 1).trimmed();
-    }
+
     int arraySize = 1;
-    if (extractArrays == true) {
-      QString arraySizeStr = gdbVarDeclaration.mid(arrayOpenBracePos + 1, gdbVarDeclaration.indexOf("]", arrayOpenBracePos) - (arrayOpenBracePos + 1));
+    if (extendedParse == true) {
+      QString arraySizeStr = variableDeclaration.mid(arrayOpenBracePos + 1, variableDeclaration.indexOf("]", arrayOpenBracePos) - (arrayOpenBracePos + 1));
       arraySize = arraySizeStr.toInt();
     }
 
-    arrayItem = parentVariable + variableName + "[0]";
-    baseType = m_gdb->getTypeDesc(arrayItem);
+    baseType = m_gdb->getTypeDesc(parentVariable + variableName + "[0]");
     for (int m = 0; m < arraySize; m++) {
-      arrayItem = parentVariable + variableName + "[" + m + "]";
+      arrayItem = parentVariable + variableName + "[" + QString::number(m) + "]";
       if (!baseType.isEmpty())
-        ExtractType(filename, baseType, arrayItem, extractArrays);
+        ExtractType(filename, baseType, arrayItem, extendedParse);
     }
     return;
   }
 
   QString str3;
-  if (gdbVarDeclaration.lastIndexOf("*") != -1) {
-    // thsi is a pointer
-    int k = gdbVarDeclaration.indexOf(")");
-    if (k != -1) {
-      gdbVarDeclaration = gdbVarDeclaration.left(k);
-    }
+  if (variableDeclaration.contains('*')) {
+    // this is a pointer
+    int closingBracketPos = variableDeclaration.indexOf(")");
+    if (closingBracketPos != -1)
+      variableDeclaration = variableDeclaration.mid(0, closingBracketPos);
 
-    gdbVarDeclaration = gdbVarDeclaration.mid(gdbVarDeclaration.lastIndexOf("*") + 1).trimmed();
+    variableDeclaration = variableDeclaration.mid(variableDeclaration.lastIndexOf("*") + 1).trimmed();
 
-    if (gdbVarDeclaration.lastIndexOf(" ") != -1) {
-      gdbVarDeclaration = gdbVarDeclaration.mid(gdbVarDeclaration.lastIndexOf(" ") + 1).trimmed();
+    if (variableDeclaration.contains(' ')) {
+      variableDeclaration = variableDeclaration.mid(variableDeclaration.lastIndexOf(" ") + 1).trimmed();
     }
-    if (gdbVarDeclaration.isEmpty())
+    if (variableDeclaration.isEmpty())
       return;
-    arrayItem = parentVariable + gdbVarDeclaration;
-    str3 = gdbVarDeclaration;
-  }
-  else if (gdbVarDeclaration.contains("::"))
-  {
-    if (gdbVarDeclaration.contains("<"))
-    {
+    arrayItem = parentVariable + variableDeclaration;
+    str3 = variableDeclaration;
+  } else if (variableDeclaration.contains("::")) {
+    if (variableDeclaration.contains("<"))
       return;
-    }
-    if ((gdbVarDeclaration.startsWith("const ")) || (gdbVarDeclaration.startsWith("static const ")))
-    {
-      return;
-    }
 
-    str3 = gdbVarDeclaration.mid(gdbVarDeclaration.lastIndexOf(" ") + 1).trimmed();
+    if ((variableDeclaration.startsWith("const ")) || (variableDeclaration.startsWith("static const ")))
+      return;
+
+    str3 = variableDeclaration.mid(variableDeclaration.lastIndexOf(" ") + 1).trimmed();
     arrayItem = parentVariable + str3;
   } else {
-    if ((gdbVarDeclaration.contains(":")) && (!gdbVarDeclaration.contains("::")))
-    {
+    if ((variableDeclaration.contains(":")) && (!variableDeclaration.contains("::")))
       return;
-    }
 
-    str3 = gdbVarDeclaration.mid(gdbVarDeclaration.lastIndexOf(" ") + 1).trimmed();
+    str3 = variableDeclaration.mid(variableDeclaration.lastIndexOf(" ") + 1).trimmed();
     arrayItem = parentVariable + str3;
   }
 
-  gdbVarDeclaration = gdbVarDeclaration.trimmed();
-  if (gdbVarDeclaration.endsWith(arrayItem))
-    gdbVarDeclaration = gdbVarDeclaration.mid(0, gdbVarDeclaration.lastIndexOf(arrayItem));
-  else if (gdbVarDeclaration.endsWith(str3)) {
-    gdbVarDeclaration = gdbVarDeclaration.mid(0, gdbVarDeclaration.lastIndexOf(str3));
-  }
-  if (!ExtractType(filename, gdbVarDeclaration, arrayItem, extractArrays))
-  {
+  variableDeclaration = variableDeclaration.trimmed();
+  if (variableDeclaration.endsWith(arrayItem))
+    variableDeclaration = variableDeclaration.mid(0, variableDeclaration.lastIndexOf(arrayItem));
+  else if (variableDeclaration.endsWith(str3))
+    variableDeclaration = variableDeclaration.mid(0, variableDeclaration.lastIndexOf(str3));
+
+  // First try to get the type info from the GDB delaration
+  // if it fails ask the GDB for the type description
+  if (!ExtractType(filename, variableDeclaration, arrayItem, extendedParse)) {
     baseType = m_gdb->getTypeDesc(arrayItem);
     if (!baseType.isEmpty())
-      ExtractType(filename, baseType, arrayItem, extractArrays);
+      ExtractType(filename, baseType, arrayItem, extendedParse);
   }
 }
 
-bool InfoVar::ExtractType(const QString &paramString1, const QString &paramString2, const QString &name, bool parambool)
+bool InfoVar::ExtractType(const QString &filename, const QString &variableDeclaration_, const QString &name, bool extendedParse)
 {
-  QString str = paramString2.trimmed();
-
-  int k = 1;
-  while (k == 1) {
-    k = 0;
-    if (str.startsWith("extern ")) {
-      str = str.mid(7);
-      k = 1;
+  if (variableDeclaration_.contains("lastAckedSeqNum")) {
+    qWarning() << "lastz";
+  }
+  QString variableDeclaration = variableDeclaration_.trimmed();
+  // remove extern, static, volatile, const modifiers
+  bool checkForRemovablePrefix = true;
+  while (checkForRemovablePrefix) {
+    checkForRemovablePrefix = false;
+    if (variableDeclaration.startsWith("extern ")) {
+      variableDeclaration = variableDeclaration.mid(7);
+      checkForRemovablePrefix = true;
     }
-    if (str.startsWith("static ")) {
-      str = str.mid(7);
-      k = 1;
+    if (variableDeclaration.startsWith("static ")) {
+      variableDeclaration = variableDeclaration.mid(7);
+      checkForRemovablePrefix = true;
     }
-    if (str.startsWith("volatile ")) {
-      str = str.mid(9);
-      k = 1;
+    if (variableDeclaration.startsWith("volatile ")) {
+      variableDeclaration = variableDeclaration.mid(9);
+      checkForRemovablePrefix = true;
     }
-    if (str.startsWith("const ")) {
-      str = str.mid(6);
-      k = 1;
+    if (variableDeclaration.startsWith("const ")) {
+      variableDeclaration = variableDeclaration.mid(6);
+      checkForRemovablePrefix = true;
     }
-
   }
 
-  if ((str.startsWith("struct ")) || (str.startsWith("union "))) {
-    int i = str.indexOf("{");
-    int j = 0;
-    if (i != -1) {
-      j = GetMatchingClosingBrace(str);
-      if (j == -1) {
-        qWarning() << "Can not match opened brace in " + str;
+  if (variableDeclaration.startsWith("struct ") || variableDeclaration.startsWith("union ")) {
+    int openingBracketPos = variableDeclaration.indexOf("{");
+    int closingBracketPos = 0;
+    if (openingBracketPos != -1) {
+      closingBracketPos = GetMatchingClosingBrace(variableDeclaration);
+      if (closingBracketPos == -1) {
+        qWarning() << "Can not match opened brace in " + variableDeclaration;
         return false;
       }
 
-      if (str.indexOf("*", j + 1) == -1) {
-        BuildVarList(paramString1, str.mid(i + 1, j), name + '.', parambool);
+      if (variableDeclaration.indexOf("*", closingBracketPos + 1) == -1) {
+        ProcessFileSection(filename, variableDeclaration.mid(openingBracketPos + 1, closingBracketPos), name + '.', extendedParse);
         return true;
       }
-
     } else {
+      // struct/union without starting { bracket
       return false;
     }
   }
 
-  short s = getType(str, name);
-  if (s == -1) {
+  auto s = getType(variableDeclaration, name);
+  if (s == Void)
     return false;
-  }
 
+  // skip if already added to the list
   for (const auto *localGdbVar : m_varList) {
-    if (localGdbVar->get_name() == name) {
+    if (localGdbVar->get_name() == name)
       return true;
-    }
   }
 
-  long l = m_gdb->getSymbolAddress(name);
-  m_varList.append(new GdbVar(name, s, paramString1, l));
+  long address = m_gdb->getSymbolAddress(name);
+  m_varList.append(new GdbVar(name, s, filename, address));
   return true;
 }
 
-// FIXME this should return with an enum!
-short InfoVar::getType(const QString &paramString1, const QString &paramString2)
+InfoVar::DataType InfoVar::getType(const QString &variableType_, const QString &paramString2)
 {
-  QString str2 = paramString1.trimmed();
-  int i = 1;
-  while (i == 1) {
-    i = 0;
-    if (str2.startsWith("extern ")) {
-      str2 = str2.mid(7);
-      i = 1;
+  // TODO expand it with the stdint definitions to make it faster
+  QString variableType = variableType_.trimmed();
+  bool checkForRemovablePrefix = true;
+  while (checkForRemovablePrefix) {
+    checkForRemovablePrefix = false;
+    if (variableType .startsWith("extern ")) {
+      variableType  = variableType .mid(7);
+      checkForRemovablePrefix = true;
     }
-    if (str2.startsWith("static ")) {
-      str2 = str2.mid(7);
-      i = 1;
+    if (variableType .startsWith("static ")) {
+      variableType  = variableType .mid(7);
+      checkForRemovablePrefix = true;
     }
-    if (str2.startsWith("volatile ")) {
-      str2 = str2.mid(9);
-      i = 1;
-    }
-  }
-  short ret;
-  QString str1;
-  if (str2.lastIndexOf("*") != -1) {
-    ret = 2;
-    str1 = m_gdb->getSizeof(paramString2);
-    if (str1 == "1") {
-      ret = 0;
-    } else if (str1 == "4") {
-      ret = 4;
+    if (variableType .startsWith("volatile ")) {
+      variableType  = variableType .mid(9);
+      checkForRemovablePrefix = true;
     }
   }
-  else if (str2.startsWith("enum"))
-  {
-    ret = 3;
-    str1 = m_gdb->getSizeof(paramString2);
-    if (str1 == "1") {
-      ret = 1;
-    }
-  }
-  else if (str2 == "unsigned char")
-  {
-    ret = 0;
-  }
-  else if (str2 == "char")
-  {
-    ret = 1;
-  }
-  else if (str2 == "signed char")
-  {
-    ret = 1;
-  }
-  else if ((str2 == "unsigned short") || (str2 == "unsigned short int") || (str2 == "short unsigned int"))
-  {
-    ret = 2;
-  }
-  else if ((str2 == "short") || (str2 == "short int"))
-  {
-    ret = 3;
-  }
-  else if ((str2 == "signed short") || (str2 == "signed short int") || (str2 == "short signed int"))
-  {
-    ret = 3;
-  }
-  else if (str2 == "unsigned int")
-  {
-    ret = 4;
-    str1 = m_gdb->getSizeof(paramString2);
-    if (str1 == "2")
-    {
-      ret = 2;
-    }
-  }
-  else if (str2 == "int")
-  {
-    ret = 5;
-    str1 = m_gdb->getSizeof(paramString2);
-    if (str1 == "2")
-    {
-      ret = 3;
-    }
-  }
-  else if (str2 == "signed int")
-  {
-    ret = 5;
-    str1 = m_gdb->getSizeof(paramString2);
-    if (str1 == "2")
-    {
-      ret = 3;
-    }
-  }
-  else if ((str2 == "unsigned long") || (str2 == "unsigned long int") || (str2 == "long unsigned int"))
-  {
-    ret = 4;
-  }
-  else if ((str2 == "long") || (str2 == "long int"))
-  {
-    ret = 5;
-  }
-  else if (str2 == "signed long" || str2 == "signed long int" || str2 == "long signed int")
-  {
-    ret = 5;
-  } else {
-    if (str2.startsWith("void"))
-    {
-      return -1;
-    }
-    if (str2.contains("double")) {
-      return 7;
-    }
-    if (str2.contains("float")) {
-      return 6;
-    }
 
-    qWarning() << str2;
-    return -1;
+  int gdbSize = -1;
+  if (variableType .lastIndexOf("*") != -1) {
+    gdbSize = m_gdb->getSizeof(paramString2);
+    if (gdbSize == 1) {
+      return Int8;
+    } else if (gdbSize == 4) {
+      return UInt32;
+    } else {
+      return UInt16;
+    }
+  } else if (variableType .startsWith("enum")) {
+    gdbSize = m_gdb->getSizeof(paramString2);
+    if (gdbSize == 1)
+      return Int8;
+    else
+      return Int16;
+  } else if (variableType  == "unsigned char") {
+    return UInt8;
+  } else if (variableType  == "char"
+             || variableType  == "signed char") {
+    return Int8;
+  } else if (variableType  == "unsigned short"
+             || variableType  == "unsigned short int"
+             || variableType  == "short unsigned int") {
+    return UInt16;
+  } else if (variableType  == "short"
+             || variableType  == "short int"
+             || variableType  == "signed short"
+             || variableType  == "signed short int"
+             || variableType  == "short signed int") {
+    return Int16;
+  } else if (variableType  == "unsigned int") {
+    gdbSize = m_gdb->getSizeof(paramString2);
+    if (gdbSize == 2)
+      return UInt16;
+    else
+      return UInt32;
+  } else if (variableType  == "int"
+             || variableType  == "signed int") {
+    gdbSize = m_gdb->getSizeof(paramString2);
+    if (gdbSize == 2)
+      return Int16;
+    else
+      return Int32;
+  } else if (variableType  == "unsigned long"
+             || variableType  == "unsigned long int"
+             || variableType  == "long unsigned int") {
+    return UInt32;
+  } else if (variableType  == "long"
+             || variableType  == "long int"
+             || variableType  == "signed long"
+             || variableType  == "signed long int"
+             || variableType  == "long signed int") {
+    return Int32;
+  } else {
+    if (variableType .startsWith("void"))
+      return Void;
+    if (variableType .contains("double"))
+      return Double;
+    if (variableType .contains("float"))
+      return Float;
   }
-  return ret;
+  return Void;
+}
+
+void InfoVar::dump()
+{
+  for (auto var : m_varList) {
+    var->dump();
+  }
 }

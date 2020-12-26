@@ -14,7 +14,7 @@ private slots:
     void testGdbExec()
     {
         GdbExec e;
-        e.buildVarList("/home/mm/Projektek/xlineusb/Debug/xlineusb.elf", true);
+        e.buildVarList("/home/mm/Projektek/digitroll/stm32_xline_usb/Debug/xlineusb.elf", true);
     }
 };
 

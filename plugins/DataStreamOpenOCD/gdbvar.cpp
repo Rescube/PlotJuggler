@@ -1,28 +1,34 @@
 #include "gdbvar.h"
 
-GdbVar::GdbVar(const QString &paramString1, const QString &paramString2)
+#include <stdio.h>
+#include <QDebug>
+
+GdbVar::GdbVar(const QString &name, const QString &fileName)
 {
-  m_name = paramString1;
-  m_filename = paramString2;
+  m_name = name;
+  m_filename = fileName;
   ParseFileDisplayName();
   m_type = -1;
   m_address = 0L;
 }
 
-GdbVar::GdbVar(const QString &paramString1, short paramShort, const QString &paramString2, long paramLong)
+GdbVar::GdbVar(const QString &name, short paramShort, const QString &fileName, long address)
 {
-  m_name = paramString1;
-  m_filename = paramString2;
+  m_name = name;
+  m_filename = fileName;
   ParseFileDisplayName();
   m_type = paramShort;
-  m_address = paramLong;
+  m_address = address;
 }
 
 void GdbVar::ParseFileDisplayName()
 {
   int i = m_filename.lastIndexOf("\\");
+  if (i == -1)
+    i = m_filename.lastIndexOf("/");
+
   if (i != -1) {
-    QString str = m_filename.mid(0, i);
+    QString str = m_filename.left(i);
     m_displayFilename = (m_filename.mid(i + 1) + " (" + str + ")");
   } else {
     m_displayFilename = m_filename;
@@ -52,4 +58,10 @@ long GdbVar::get_address()
 void GdbVar::set_address(long paramLong)
 {
   m_address = paramLong;
+}
+
+void GdbVar::dump()
+{
+  printf("%s %s, 0x%lx\n", m_filename.toLocal8Bit().constData(), m_name.toLocal8Bit().constData(), m_address);
+  //qWarning() << m_filename << m_name << QString::number(m_address, 16);
 }

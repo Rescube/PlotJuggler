@@ -8,9 +8,7 @@ class InfoVar;
 
 class GdbExec
 {
-  QProcess m_p;
-  bool verbose = true;
-
+public:
   enum Result {
     IO_ERROR = 0,
     CMD_ERROR = 1,
@@ -18,23 +16,14 @@ class GdbExec
     CMD_END_OK = 3,
   };
 
-  enum GdbStatus {
+  enum GdbCommandResult {
     Idle,
     Error = 1,
     WaitForAnswer = 2,
     AnswerReceived = 3
   };
 
-  const QString GDB_PROMPT = "(gdb) ";
 
-  int m_status = 3;
-  QString m_stdoutStr = "";
-  QString m_stderrStr = "";
-  long m_addressOffset = 0L;
-  InfoVar *m_getGdbVar = nullptr;
-  const QString m_gdbExecutablePath = "/usr/bin/gdb-multiarch";
-
-public:
   GdbExec();
   ~GdbExec();
 
@@ -43,12 +32,25 @@ public:
 
   QString getTypeDesc(const QString &  paramString);
   short getType(const QString &  paramString);
-  QString getSizeof(const QString &  paramString);
+  int getSizeof(const QString &  paramString);
   bool buildVarList(const QString &  symbolFilePath, bool parambool);
   long getSymbolAddress(const QString &  paramString);
+  void dump();
 
 private:
-  void sendCmd(const QString &  paramString);
+  const QString GDB_PROMPT = "(gdb) ";
+  const int GDB_PROMPT_LENGTH = 6;
+  QProcess m_p;
+  bool verbose = true;
+
+  QString m_stdoutStr = "";
+  QString m_stderrStr = "";
+  long m_addressOffset = 0L;
+  InfoVar *m_getGdbVar = nullptr;
+  const QString m_gdbExecutablePath = "/usr/bin/gdb-multiarch";
+
+
+  void sendCmd(const QString &  command);
   void stop();
-  int sendCmdAndWaitAnswer(const QString &  paramString);
+  GdbCommandResult sendCmdAndWaitAnswer(const QString &  paramString);
 };

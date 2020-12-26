@@ -7,12 +7,13 @@ class GdbVar
 {
 public:
   GdbVar(const QString & paramString1, const QString & paramString2);
-  GdbVar(const QString & paramString1, short paramShort, const QString & paramString2, long paramLong);
+  GdbVar(const QString & paramString1, short paramShort, const QString & paramString2, long address);
   QString get_name() const;
   short get_type()  const;
   QString get_filename() const;
   long get_address();
   void set_address(long paramLong);
+  void dump();
 
 private:
   QString m_name;

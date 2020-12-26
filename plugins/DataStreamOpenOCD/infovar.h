@@ -11,9 +11,22 @@ class GdbVar;
 class InfoVar
 {
 public:
+  enum DataType {
+    Void = -1,
+    Signed = 1,
+    UInt8 = 0,
+    Int8 = (UInt8 | Signed),
+    UInt16 = 2,
+    Int16 = (UInt16 | Signed),
+    UInt32 = 4,
+    Int32 = (UInt32 | Signed),
+    Double = 7,
+    Float = 6
+  };
   InfoVar(GdbExec *paramGdbExec);
-  void Parse(const QString &m_infoVarStr, bool parambool);
-  short getType(const QString  &paramString1, const QString &paramString2);
+  void Parse(const QString m_infoVarStr, bool extendedParse);
+  DataType getType(const QString  &variableType_, const QString &paramString2);
+  void dump();
 
 private:
   QList<GdbVar*> m_varList;
@@ -23,7 +36,7 @@ private:
   const QString NON_DEBUG_MARKER = "Non-debugging symbols:";
 
   int GetMatchingClosingBrace(const QString &paramString);
-  void BuildVarList(const QString & fileName, const QString & paramString2, const QString & paramString3, bool parambool);
-  void ExtractIdentifier(const QString & filename, const QString & paramString2, const QString & parentVariable, bool parambool);
-  bool ExtractType(const QString & paramString1, const QString & paramString2, const QString & paramString3, bool parambool);
+  void ProcessFileSection(const QString & fileName, const QString & variableList, const QString & paramString3, bool extendedParse);
+  void ExtractIdentifier(const QString & filename, const QString & paramString2, const QString & parentVariable, bool extendedParse);
+  bool ExtractType(const QString & filename, const QString & paramString2, const QString & paramString3, bool extendedParse);
 };
