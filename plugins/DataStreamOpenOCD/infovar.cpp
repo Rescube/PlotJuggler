@@ -275,7 +275,6 @@ bool InfoVar::ExtractType(const QString &filename, const QString &variableDeclar
 
 InfoVar::DataType InfoVar::getType(const QString &variableType_, const QString &paramString2)
 {
-  // TODO expand it with the stdint definitions to make it faster
   QString variableType = variableType_.trimmed();
   bool checkForRemovablePrefix = true;
   while (checkForRemovablePrefix) {
@@ -310,20 +309,24 @@ InfoVar::DataType InfoVar::getType(const QString &variableType_, const QString &
       return Int8;
     else
       return Int16;
-  } else if (variableType  == "unsigned char") {
+  } else if (variableType  == "unsigned char"
+             || variableType == "uint8_t") {
     return UInt8;
   } else if (variableType  == "char"
-             || variableType  == "signed char") {
+             || variableType  == "signed char"
+             || variableType == "int8_t") {
     return Int8;
   } else if (variableType  == "unsigned short"
              || variableType  == "unsigned short int"
-             || variableType  == "short unsigned int") {
+             || variableType  == "short unsigned int"
+             || variableType == "uint16_t") {
     return UInt16;
   } else if (variableType  == "short"
              || variableType  == "short int"
              || variableType  == "signed short"
              || variableType  == "signed short int"
-             || variableType  == "short signed int") {
+             || variableType  == "short signed int"
+             || variableType == "int16_t") {
     return Int16;
   } else if (variableType  == "unsigned int") {
     gdbSize = m_gdb->getSizeof(paramString2);
@@ -340,13 +343,15 @@ InfoVar::DataType InfoVar::getType(const QString &variableType_, const QString &
       return Int32;
   } else if (variableType  == "unsigned long"
              || variableType  == "unsigned long int"
-             || variableType  == "long unsigned int") {
+             || variableType  == "long unsigned int"
+             || variableType == "uint32_t") {
     return UInt32;
   } else if (variableType  == "long"
              || variableType  == "long int"
              || variableType  == "signed long"
              || variableType  == "signed long int"
-             || variableType  == "long signed int") {
+             || variableType  == "long signed int"
+             || variableType == "int32_t") {
     return Int32;
   } else {
     if (variableType .startsWith("void"))
