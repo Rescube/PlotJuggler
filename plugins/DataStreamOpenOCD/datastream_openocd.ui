@@ -18,24 +18,35 @@
     <widget class="QWidget" name="boxOptions" native="true">
      <layout class="QGridLayout" name="gridLayout">
       <item row="0" column="0">
-       <widget class="QLabel" name="label">
+       <widget class="QLabel" name="labelExecutableLabel">
         <property name="text">
          <string>Executable file</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QToolButton" name="toolButtonImport">
+        <property name="text">
+         <string>Import</string>
         </property>
        </widget>
       </item>
       <item row="0" column="1">
        <widget class="QPathEdit" name="patheditExecutableFilePath"/>
       </item>
-      <item row="0" column="2">
-       <widget class="QToolButton" name="toolButton">
+      <item row="0" column="3">
+       <widget class="QToolButton" name="toolButtonSettings">
         <property name="text">
-         <string>Import</string>
+         <string>...</string>
+        </property>
+        <property name="icon">
+         <iconset resource="../../src/resource.qrc">
+          <normaloff>:/resources/svg/settings_cog.svg</normaloff>:/resources/svg/settings_cog.svg</iconset>
         </property>
        </widget>
       </item>
-      <item row="1" column="0" colspan="3">
-       <widget class="QTreeView" name="treeViewVariables"/>
+      <item row="1" column="0" colspan="4">
+       <widget class="QTableView" name="tableViewVariables"/>
       </item>
      </layout>
     </widget>
@@ -59,7 +70,9 @@
    <header>qpathedit.h</header>
   </customwidget>
  </customwidgets>
- <resources/>
+ <resources>
+  <include location="../../src/resource.qrc"/>
+ </resources>
  <connections>
   <connection>
    <sender>buttonBox</sender>

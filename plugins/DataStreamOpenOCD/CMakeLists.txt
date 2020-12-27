@@ -6,7 +6,9 @@ add_definitions(${QT_DEFINITIONS})
 add_definitions(-DQT_PLUGIN)
 add_definitions(-DQ_DIALOG_MASTER_EXPORT=)
 
-QT5_WRAP_UI ( UI_SRC  datastream_openocd.ui  )
+QT5_WRAP_UI ( UI_SRC
+              datastream_openocd.ui
+              dialog_settings.ui)
 
 include_directories(DialogMaster QPathEdit/QPathEdit)
 
@@ -20,6 +22,10 @@ SET( SRC
     gdbvar.cpp
     gdbexec.h
     gdbexec.cpp
+    dialog_settings.h
+    dialog_settings.cpp
+    openocddialog.cpp
+    openocddialog.h
     )
 
 add_library(DataStreamOpenOCD SHARED ${SRC} ${UI_SRC}  )

@@ -1,24 +1,12 @@
 #pragma once
 #include <QDialog>
 
-#include <QtPlugin>
-#include <thread>
 #include "PlotJuggler/datastreamer_base.h"
 #include "PlotJuggler/messageparser_base.h"
 #include "ui_datastream_openocd.h"
 
-class OpenOCDDialog : public QDialog
-{
-  Q_OBJECT
-
-public:
-  explicit OpenOCDDialog(QWidget *parent = nullptr);
-  ~OpenOCDDialog();
-
-  Ui::DataStreamOpenOCD *ui;
-
-};
-
+#include <QtPlugin>
+#include <thread>
 
 class DataStreamOpenOCD : public PJ::DataStreamer
 {
@@ -42,7 +30,7 @@ public:
 
   virtual const char* name() const override
   {
-    return "openOCD Subscriber";
+    return "openOCD BDM data source";
   }
 
   virtual bool isDebugPlugin() override
@@ -52,5 +40,6 @@ public:
 
 private:
   void receiveLoop();
+
   bool _running = false;
 };
